@@ -419,6 +419,18 @@ class HubConnection {
       return;
     }
 
+    final shouldReturn = await _tryReconnect(nextRetryDelay, previousReconnectAttempts, reconnectStartTime);
+    if (shouldReturn) {
+      return;
+    }
+
+    _logger!(LogLevel.information,
+        'Reconnect retries have been exhausted after ${reconnectStartTime.elapsedMilliseconds} ms and $previousReconnectAttempts failed attempts. Connection disconnecting.');
+
+    _completeClose();
+  }
+  
+  Future<bool> _tryReconnect(int? nextRetryDelay, int previousReconnectAttempts, Stopwatch reconnectStartTime) async {
     while (nextRetryDelay != null) {
       _logger!(LogLevel.information,
           'Reconnect attempt number $previousReconnectAttempts will start in $nextRetryDelay ms.');
@@ -435,7 +447,7 @@ class HubConnection {
           _connectionState != HubConnectionState.reconnecting) {
         _logger!(LogLevel.debug,
             'Connection left the reconnecting state during reconnect delay. Done reconnecting.');
-        return;
+        return false;
       }
 
       try {
@@ -454,7 +466,7 @@ class HubConnection {
               'An onreconnected callback called with connectionId \'${_connection!.connectionId}; threw error \'${e.toString()}\'.');
         }
 
-        return;
+        return false;
       } catch (e) {
         _logger!(LogLevel.information,
             'Reconnect attempt failed because of error \'${e.toString()}\'.');
@@ -462,10 +474,10 @@ class HubConnection {
         if (_connectionState != HubConnectionState.reconnecting) {
           _logger!(LogLevel.debug,
               'Connection left the reconnecting state during reconnect attempt. Done reconnecting.');
-          return;
+          return false;
         }
 
-        retryError = (e is Exception) ? e : Exception(e.toString());
+        final retryError = (e is Exception) ? e : Exception(e.toString());
         nextRetryDelay = _getNextRetryDelay(
           previousRetryCount: previousReconnectAttempts++,
           elapsedMilliseconds: reconnectStartTime.elapsedMilliseconds,
@@ -473,11 +485,7 @@ class HubConnection {
         );
       }
     }
-
-    _logger!(LogLevel.information,
-        'Reconnect retries have been exhausted after ${reconnectStartTime.elapsedMilliseconds} ms and $previousReconnectAttempts failed attempts. Connection disconnecting.');
-
-    _completeClose();
+    return true;
   }
 
   int? _getNextRetryDelay({

@@ -74,7 +74,7 @@ class ServerSentEventsTransport implements Transport {
       return completer.completeError(e);
     }
 
-    _sseClient!.stream!.listen((data) {
+    _sseClient!.stream.listen((data) {
       _log!(LogLevel.trace,
           '(SSE transport) data received. ${getDataDetail(data, _logMessageContent)}');
       onreceive!(data);
